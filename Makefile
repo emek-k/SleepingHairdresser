@@ -1,13 +1,8 @@
-OBJ = main.c queue.c
-output: main.c
+OBJ = main.o queue.o
+all: run
+run: $(OBJ)
 	gcc $(OBJ) -o run
-
-main.o: main.c
-	gcc -c main.c
-
-queue.o: queue.c myQueue.h
-	gcc -c queue.c
-	
+$(OBJ): myQueue.h
 .PHONY: clean
 clean:
 	rm -f *.o run

@@ -9,7 +9,6 @@ Autorzy - Emanuel Korycki, Patryk Rybak
 #include <pthread.h>
 #include <unistd.h>
 #include <ctype.h>
-
 #include "myQueue.h"
 
 int NUMBER_OF_BARBERS = 1;   //numer of active hairdresser seats
@@ -120,6 +119,7 @@ void* customer(void* args){
 
     long clientId = (long) args;
     clientId++;
+
     
     pthread_mutex_lock(&mutexWaitRoom);
     if(clientsInWaitingRoom < NUMBER_OF_SEATS){
@@ -139,6 +139,7 @@ void* customer(void* args){
         printfInfo();
         pthread_mutex_unlock(&mutexWaitRoom);
     }
+    return NULL;
 }
 
 void randomSleep(){
@@ -207,20 +208,20 @@ int main(int argc, char *argv[]){
         return EXIT_FAILURE;
     }
 
-
-    for(int i=0; i<argc; i++){
-        printf("%s\n", argv[i]);
-    }
-    if(isdigit(atoi(argv[1]))){
+    if(isdigit(*argv[1])){
         NUMBER_OF_CLIENTS = atoi(argv[1]);
+    }else{
+        printf("Wrong value. Expected a number of clients (threads)!\n");
+        return EXIT_FAILURE;
     }
 
-    // if(argc == 3 && strcmp(argv[2], "-info") == 0 || strcmp(argv[2], "-INFO") == 0 ){
-    //     INFO = 1;
-    // }
+    if(argc > 2 && (strcmp(argv[2], "-info") == 0 || strcmp(argv[2], "-INFO") == 0)){
+        INFO = 1;
+    }
 
     printf("STATUS | CLIENTS %d | INFO %d | CUT TIME %d\n", NUMBER_OF_CLIENTS, INFO, TIME_OF_CUTTING);
-    //initialazieThreads();
+
+    initialazieThreads();
 
     return EXIT_SUCCESS;
 }
