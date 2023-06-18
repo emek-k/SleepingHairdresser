@@ -1,6 +1,13 @@
 /*
 Problem śpiącego fryzjera
 Autorzy - Emanuel Korycki, Patryk Rybak
+
+To run a program write:
+make
+./run 10 3 -info
+10 - number of clients
+3 - time of cutting
+-info - (not necessary) flag to show barberQue and leftQue
 */
 #include <stdio.h>
 #include <stdbool.h>
@@ -108,9 +115,9 @@ void* barber(void* args){
         pthread_mutex_lock(&mutexWaitRoom);
         clientsInWaitingRoom--;
         pthread_mutex_unlock(&mutexWaitRoom);
-        printfInfo();
         doCutting();
         barberAskClientToLeave();
+        printfInfo();
    }
 }
 
@@ -232,7 +239,7 @@ int main(int argc, char *argv[]){
         INFO = 1;
     }
 
-    printf("STATUS | CLIENTS %d | INFO %d | CUT TIME %d\n", NUMBER_OF_CLIENTS, INFO, TIME_OF_CUTTING);
+    printf("STATUS | CLIENTS %d | CUT TIME %d | INFO %d\n", NUMBER_OF_CLIENTS, TIME_OF_CUTTING, INFO);
 
     initialazieThreads();
 
