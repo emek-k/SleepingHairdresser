@@ -177,8 +177,8 @@ void initialazieThreads(){
     }
 
     for(long i=0; i<NUMBER_OF_CLIENTS; i++){
-        //randomSleep();
-        sleep(2);
+        randomSleep();
+        //sleep(2);
         if(pthread_create(&clients[i], NULL, customer, (void*) i)){
             perror("Failed to create customer thread!\n");
             exit(EXIT_FAILURE);
