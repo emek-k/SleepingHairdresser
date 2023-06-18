@@ -40,7 +40,7 @@ mutexCutting - cutting
 
 
 void printfInfo(){
-    if(currentlyCutting > 0){
+    if(clientsInWaitingRoom > 0){
         printf("Wait Room: %d/%d | In: %d\n", clientsInWaitingRoom, NUMBER_OF_SEATS, currentlyCutting);
         if(INFO == 1){
             printf("Barber que: ");
@@ -117,7 +117,6 @@ void* barber(void* args){
         pthread_mutex_unlock(&mutexWaitRoom);
         doCutting();
         barberAskClientToLeave();
-        printfInfo();
    }
 }
 
