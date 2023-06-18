@@ -204,9 +204,15 @@ void initialazieThreads(){
 int main(int argc, char *argv[]){
 
     if(argc < 2){
-        printf("Expected number of clients (threads)!\n");
+        printf("Expected number of clients (threads) and time of cutting!\n");
         return EXIT_FAILURE;
     }
+
+    if(argc < 3){
+        printf("Expected time of cutting!\n");
+        return EXIT_FAILURE;
+    }
+
 
     if(isdigit(*argv[1])){
         NUMBER_OF_CLIENTS = atoi(argv[1]);
@@ -215,7 +221,14 @@ int main(int argc, char *argv[]){
         return EXIT_FAILURE;
     }
 
-    if(argc > 2 && (strcmp(argv[2], "-info") == 0 || strcmp(argv[2], "-INFO") == 0)){
+    if(isdigit(*argv[2])){
+        TIME_OF_CUTTING = atoi(argv[2]);
+    }else{
+        printf("Wrong value. Expected time of cutting!\n");
+        return EXIT_FAILURE;
+    }
+
+    if(argc > 3 && (strcmp(argv[3], "-info") == 0 || strcmp(argv[3], "-INFO") == 0)){
         INFO = 1;
     }
 
