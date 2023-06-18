@@ -9,6 +9,7 @@ Autorzy - Emanuel Korycki, Patryk Rybak
 #include <pthread.h>
 #include <unistd.h>
 #include <ctype.h>
+
 #include "myQueue.h"
 
 int NUMBER_OF_BARBERS = 1;   //numer of active hairdresser seats
@@ -119,7 +120,6 @@ void* customer(void* args){
 
     long clientId = (long) args;
     clientId++;
-
     
     pthread_mutex_lock(&mutexWaitRoom);
     if(clientsInWaitingRoom < NUMBER_OF_SEATS){

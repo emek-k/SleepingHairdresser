@@ -1,8 +1,13 @@
-OBJ = main.o myThredLib.o
-all: run
-run: $(OBJ)
+OBJ = main.c queue.c
+output: main.c
 	gcc $(OBJ) -o run
-$(OBJ): myThredHeader.h
+
+main.o: main.c
+	gcc -c main.c
+
+queue.o: queue.c myQueue.h
+	gcc -c queue.c
+	
 .PHONY: clean
 clean:
 	rm -f *.o run
