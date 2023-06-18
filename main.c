@@ -40,21 +40,20 @@ mutexCutting - cutting
 
 
 void printfInfo(){
-    if(clientsInWaitingRoom > 0){
+    //pthread_mutex_lock(&mutexWaitRoom);
+    //pthread_mutex_lock(&mutexCurrentlyCutting);
+    if(clientsInWaitingRoom > 0)
         printf("Wait Room: %d/%d | In: %d\n", clientsInWaitingRoom, NUMBER_OF_SEATS, currentlyCutting);
-        if(INFO == 1){
-            printf("Barber que: ");
-            printQue(barberQue);
-        }
-    }
-    else{
+    else
         printf("Wait Room: %d/%d | In: -\n", clientsInWaitingRoom, NUMBER_OF_SEATS);
-        if(INFO == 1){
-            printf("Left que: ");
+    //pthread_mutex_unlock(&mutexWaitRoom);
+    //pthread_mutex_unlock(&mutexCurrentlyCutting);
+    if(INFO == 1){
+            printf("    Barber que: ");
+            printQue(barberQue);
+            printf("    Left que: ");
             printQue(leftQue);
         }
-            
-    }
 }
 
 void doCutting(){
@@ -105,7 +104,6 @@ void barberAskClientToLeave(){
 
 void* barber(void* args){
    while(1){
-        printfInfo();
         pthread_mutex_lock(&mutexCutting);
         while(1){
             pthread_cond_wait(&condClientIsReady, &mutexCutting);
@@ -115,6 +113,7 @@ void* barber(void* args){
         pthread_mutex_lock(&mutexWaitRoom);
         clientsInWaitingRoom--;
         pthread_mutex_unlock(&mutexWaitRoom);
+        printfInfo();
         doCutting();
         barberAskClientToLeave();
    }
@@ -178,7 +177,8 @@ void initialazieThreads(){
     }
 
     for(long i=0; i<NUMBER_OF_CLIENTS; i++){
-        randomSleep();
+        //randomSleep();
+        sleep(2);
         if(pthread_create(&clients[i], NULL, customer, (void*) i)){
             perror("Failed to create customer thread!\n");
             exit(EXIT_FAILURE);

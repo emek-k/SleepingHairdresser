@@ -28,7 +28,7 @@ struct Queue *addToQue(struct Queue *que, int clientId){
 void printQue(struct Queue *que){
     Que *temp = que;
     while(temp != NULL){
-        printf("ID: %d | ", temp->id);
+        printf(" %d | ", temp->id);
         temp = temp->next;
     }
     printf("\n");
