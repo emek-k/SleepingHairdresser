@@ -10,6 +10,7 @@ Que *barberQue;
 Que *leftQue;
 
 struct Queue *addToQue(struct Queue *que, int clientId);
+struct Queue *deleteFirstFromQue(struct Queue *que);
 void printQue(struct Queue *que);
 
 #endif

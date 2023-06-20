@@ -1,7 +1,8 @@
-OBJ = main.o queue.o
+#changed make file for semaphores
+OBJ = semaphores.o queue.o
 all: run
 run: $(OBJ)
-	gcc $(OBJ) -o run
+	gcc $(OBJ) -pthread -o run
 $(OBJ): myQueue.h
 .PHONY: clean
 clean:

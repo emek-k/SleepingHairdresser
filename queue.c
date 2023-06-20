@@ -24,6 +24,11 @@ struct Queue *addToQue(struct Queue *que, int clientId){
     return que;
 }
 
+struct Queue *deleteFirstFromQue(struct Queue *que){
+    Que *new = que->next;
+    free(que);
+    return new;
+}
 
 void printQue(struct Queue *que){
     Que *temp = que;
