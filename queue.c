@@ -33,7 +33,7 @@ struct Queue *deleteFirstFromQue(struct Queue *que){
 void printQue(struct Queue *que){
     Que *temp = que;
     while(temp != NULL){
-        printf(" %d | ", temp->id);
+        printf("%d | ", temp->id);
         temp = temp->next;
     }
     printf("\n");

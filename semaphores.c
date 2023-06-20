@@ -46,9 +46,10 @@ void printInfo(){
     pthread_mutex_lock(&mutexWaitroom);
     pthread_mutex_lock(&mutexCurrentlyCutting);
     pthread_mutex_lock(&mutexClientsLeft);
-    if(clientsInWaitingRoom > 0){
+    if(currentlyCutting > 0){
         printf("Resigned: %d     Wait Room: %d/%d     [in:%d]\n", clientsLeft, clientsInWaitingRoom, NUMBER_OF_SEATS_IN_WAITROOM, currentlyCutting);
-    }else{
+    }
+    else if(currentlyCutting == 0){
         printf("Resigned: %d     Wait Room: %d/%d     [in:-]\n", clientsLeft, clientsInWaitingRoom, NUMBER_OF_SEATS_IN_WAITROOM);
     }
     pthread_mutex_unlock(&mutexClientsLeft);
@@ -72,6 +73,13 @@ void deleteFirstFromBarberQue(){
     pthread_mutex_unlock(&mutexQue);
 }
 
+int getFirstElementFromQue(struct Queue *que){
+    pthread_mutex_lock(&mutexQue);
+    int nextClient = que->id;
+    pthread_mutex_unlock(&mutexQue);
+    return nextClient;
+}
+
 void addToQueSave(struct Queue **que, long clientId){
     pthread_mutex_lock(&mutexQue);
     *que = addToQue(*que, clientId);
@@ -89,9 +97,9 @@ void doCutting(){
 
     sleep(TIME_OF_CUTTING);
 
-    pthread_mutex_lock(&mutexCurrentlyCutting);
-    printf("    Done cutting %d\n", currentlyCutting);
-    pthread_mutex_unlock(&mutexCurrentlyCutting);
+    // pthread_mutex_lock(&mutexCurrentlyCutting);
+    // printf("    Done cutting %d\n", currentlyCutting);
+    // pthread_mutex_unlock(&mutexCurrentlyCutting);
 }
 
 void setCurrentlyCutting(long clientId){
@@ -118,10 +126,19 @@ void* barber(void* args){
         pthread_mutex_lock(&mutexWaitroom);
         clientsInWaitingRoom--;
         pthread_mutex_unlock(&mutexWaitroom);
+        
+        //get id of the client from the que
+        int clientId = getFirstElementFromQue(barberQue);
+        //set id to currently cutting
+        setCurrentlyCutting(clientId);
         deleteFirstFromBarberQue();
-        //sleep(TIME_OF_CUTTING);
+
+        printInfo();
+
         doCutting();
         clientLeft();
+
+        printInfo();
     }
 
     return NULL;
@@ -151,7 +168,8 @@ void* customer(void* args){
             pthread_mutex_unlock(&mutexCurrentlyCutting);
         }
         
-        setCurrentlyCutting(clientId);
+        //setCurrentlyCutting(clientId);
+
         //signal client ready
         if(sem_post(semBarber) != 0){
             perror("Sem post semBarber error!\n");
@@ -196,7 +214,7 @@ void initialazieThreads(){
 
     for(long i=0; i<NUMBER_OF_CLIENTS; i++){
         //randomSleep();
-        sleep(2);
+        sleep(1);
         if(pthread_create(&clients[i], NULL, customer, (void*) i + 1)){
             perror("Failed to create customer thread!\n");
             exit(EXIT_FAILURE);
