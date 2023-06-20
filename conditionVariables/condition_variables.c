@@ -16,7 +16,6 @@ make
 #include <pthread.h>
 #include <unistd.h>
 #include <ctype.h>
-#include <semaphore.h>
 #include <fcntl.h>
 #include <sys/shm.h>
 #include "myQueue.h"
@@ -38,8 +37,8 @@ pthread_mutex_t mutexCurrentlyCutting = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutexClientsLeft = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutexQue = PTHREAD_MUTEX_INITIALIZER;
 
-sem_t *semClient; //signal client is ready
-sem_t *semBarber; //wakes barber up
+pthread_cond_t condBarber = PTHREAD_COND_INITIALIZER;
+pthread_cond_t condClient = PTHREAD_COND_INITIALIZER;
 
 
 void printInfo(){
@@ -49,7 +48,7 @@ void printInfo(){
     if(currentlyCutting > 0){
         printf("Resigned: %d     Wait Room: %d/%d     [in:%d]\n", clientsLeft, clientsInWaitingRoom, NUMBER_OF_SEATS_IN_WAITROOM, currentlyCutting);
     }
-    else if(currentlyCutting == 0){
+    else{
         printf("Resigned: %d     Wait Room: %d/%d     [in:-]\n", clientsLeft, clientsInWaitingRoom, NUMBER_OF_SEATS_IN_WAITROOM);
     }
     pthread_mutex_unlock(&mutexClientsLeft);
@@ -113,32 +112,43 @@ void clientLeft(){
     currentlyCutting = 0;
     pthread_mutex_unlock(&mutexCurrentlyCutting);
 
-    if(sem_post(semClient) != 0){
-        perror("Sem post semClient error!\n");
+    if(pthread_cond_signal(&condClient) != 0){
+        perror("Cond signal condClient error!\n");
     }
 }
 
 void* barber(void* args){
     while(true){
-        if(sem_wait(semBarber) != 0){
+        //printf("TEST 1 barber\n");
+        while(true){
+            //printf("TEST 2 barber\n");
+            pthread_mutex_lock(&mutexCurrentlyCutting);
+            if(pthread_cond_wait(&condBarber, &mutexCurrentlyCutting) != 0){
             perror("Sem wait semBarber error!\n");
+            }
+            pthread_mutex_unlock(&mutexCurrentlyCutting);
+            //printf("TEST 3 barber\n");
+            break;
         }
+        //printf("TEST 4 barber\n");
         pthread_mutex_lock(&mutexWaitroom);
         clientsInWaitingRoom--;
         pthread_mutex_unlock(&mutexWaitroom);
-        
+        //printf("TEST 5 barber\n");
         //get id of the client from the que
         int clientId = getFirstElementFromQue(barberQue);
+        //printf("TEST 5.1 barber\n");
         //set id to currently cutting
         setCurrentlyCutting(clientId);
+        //printf("TEST 5.2 barber\n");
         deleteFirstFromBarberQue();
-
+        //printf("TEST 6 barber\n");
         printInfo();
-
+        //printf("TEST 7 barber\n");
         doCutting();
         clientLeft();
-
-        printInfo();
+        //printf("TEST 8 barber\n");
+        //printInfo();
     }
 
     return NULL;
@@ -154,26 +164,27 @@ void* customer(void* args){
     if(clientsInWaitingRoom < NUMBER_OF_SEATS_IN_WAITROOM){
         clientsInWaitingRoom++;
         pthread_mutex_unlock(&mutexWaitroom);
-
+        //printf("TEST 1 client\n");
         addToQueSave(&barberQue, clientId);
         printInfo();
-
+        //printf("TEST 2 client\n");
         pthread_mutex_lock(&mutexCurrentlyCutting);
-        if(currentlyCutting != 0){
-            pthread_mutex_unlock(&mutexCurrentlyCutting);
-            if(sem_wait(semClient) != 0){
-                perror("Sem wair semClient error!\n");
+        while(currentlyCutting != 0){
+            //printf("TEST 3 client\n");
+            if(pthread_cond_wait(&condClient, &mutexCurrentlyCutting) != 0){
+                perror("Cond wait condClient error!\n");
             }
-        }else{
-            pthread_mutex_unlock(&mutexCurrentlyCutting);
+            //printf("TEST 4 client\n");
         }
+        pthread_mutex_unlock(&mutexCurrentlyCutting);
         
         //setCurrentlyCutting(clientId);
-
+       // printf("TEST 5 client\n");
         //signal client ready
-        if(sem_post(semBarber) != 0){
-            perror("Sem post semBarber error!\n");
+        if(pthread_cond_signal(&condBarber) != 0){
+            perror("Cond signal condBarber error!\n");
         }
+        //printf("TEST 6 client\n");
 
     }else{
         pthread_mutex_unlock(&mutexWaitroom);
@@ -198,12 +209,6 @@ void initialazieThreads(){
 
     pthread_t clients[NUMBER_OF_CLIENTS];
     pthread_t barberThread[NUMBER_OF_BARBERS];
-
-    sem_unlink("/semClient");
-    sem_unlink("/semBarber");
-
-    semBarber = sem_open("/semBarber", O_CREAT|O_EXCL, S_IRWXU, 0);
-    semClient = sem_open("/semClient", O_CREAT|O_EXCL, S_IRWXU, 0);
     
     for(long i=0; i<NUMBER_OF_BARBERS; i++){
         if(pthread_create(&barberThread[i], NULL, barber, (void*) i)){
@@ -240,9 +245,8 @@ void initialazieThreads(){
     pthread_mutex_destroy(&mutexClientsLeft);
     pthread_mutex_destroy(&mutexQue);
 
-    sem_close(semClient);
-    sem_close(semBarber);
-
+    pthread_cond_destroy(&condBarber);
+    pthread_cond_destroy(&condClient);
 }
 
 int main(int argc, char *argv[]){
