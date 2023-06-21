@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include "myQueue.h"
 
-
 Que *barberQue = NULL;
 Que *leftQue = NULL;
 

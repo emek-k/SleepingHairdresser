@@ -90,15 +90,13 @@ void addToQueSave(struct Queue **que, long clientId){
 }
 
 void doCutting(){
-    //pthread_mutex_lock(&mutexCurrentlyCutting);
-    //printf("    Now cutting %d\n", currentlyCutting);
-    //pthread_mutex_unlock(&mutexCurrentlyCutting);
-
     sleep(TIME_OF_CUTTING);
+}
 
-    // pthread_mutex_lock(&mutexCurrentlyCutting);
-    // printf("    Done cutting %d\n", currentlyCutting);
-    // pthread_mutex_unlock(&mutexCurrentlyCutting);
+void takeClientFromWaitRoom(){
+    pthread_mutex_lock(&mutexWaitroom);
+    clientsInWaitingRoom--;
+    pthread_mutex_unlock(&mutexWaitroom);
 }
 
 void setCurrentlyCutting(long clientId){
@@ -111,44 +109,34 @@ void clientLeft(){
     pthread_mutex_lock(&mutexCurrentlyCutting);
     currentlyCutting = 0;
     pthread_mutex_unlock(&mutexCurrentlyCutting);
-
-    if(pthread_cond_signal(&condClient) != 0){
-        perror("Cond signal condClient error!\n");
-    }
 }
 
 void* barber(void* args){
     while(true){
-        //printf("TEST 1 barber\n");
         while(true){
-            //printf("TEST 2 barber\n");
             pthread_mutex_lock(&mutexCurrentlyCutting);
             if(pthread_cond_wait(&condBarber, &mutexCurrentlyCutting) != 0){
             perror("Sem wait semBarber error!\n");
             }
             pthread_mutex_unlock(&mutexCurrentlyCutting);
-            //printf("TEST 3 barber\n");
             break;
         }
-        //printf("TEST 4 barber\n");
-        pthread_mutex_lock(&mutexWaitroom);
-        clientsInWaitingRoom--;
-        pthread_mutex_unlock(&mutexWaitroom);
-        //printf("TEST 5 barber\n");
+        //decrement clients in the wait room
+        takeClientFromWaitRoom();
         //get id of the client from the que
         int clientId = getFirstElementFromQue(barberQue);
-        //printf("TEST 5.1 barber\n");
         //set id to currently cutting
         setCurrentlyCutting(clientId);
-        //printf("TEST 5.2 barber\n");
+        //delete currently cutting client from barberQue
         deleteFirstFromBarberQue();
-        //printf("TEST 6 barber\n");
         printInfo();
-        //printf("TEST 7 barber\n");
         doCutting();
+        //reset currently cutting client
         clientLeft();
-        //printf("TEST 8 barber\n");
-        //printInfo();
+        printInfo();
+        if(pthread_cond_signal(&condClient) != 0){
+            perror("Cond signal condClient error!\n");
+        }
     }
 
     return NULL;
@@ -160,33 +148,29 @@ void* customer(void* args){
     long clientId = (long) args;
 
     printf("Client %ld comes...\n", clientId);
+    //check if client can get into wait room
     pthread_mutex_lock(&mutexWaitroom);
     if(clientsInWaitingRoom < NUMBER_OF_SEATS_IN_WAITROOM){
         clientsInWaitingRoom++;
         pthread_mutex_unlock(&mutexWaitroom);
-        //printf("TEST 1 client\n");
+        //add client to the barberQue 
         addToQueSave(&barberQue, clientId);
         printInfo();
-        //printf("TEST 2 client\n");
+        //if sb is cutting right now then client waits for his turn
         pthread_mutex_lock(&mutexCurrentlyCutting);
         while(currentlyCutting != 0){
-            //printf("TEST 3 client\n");
             if(pthread_cond_wait(&condClient, &mutexCurrentlyCutting) != 0){
                 perror("Cond wait condClient error!\n");
             }
-            //printf("TEST 4 client\n");
         }
         pthread_mutex_unlock(&mutexCurrentlyCutting);
         
-        //setCurrentlyCutting(clientId);
-       // printf("TEST 5 client\n");
         //signal client ready
         if(pthread_cond_signal(&condBarber) != 0){
             perror("Cond signal condBarber error!\n");
         }
-        //printf("TEST 6 client\n");
-
     }else{
+        //note that client left
         pthread_mutex_unlock(&mutexWaitroom);
         pthread_mutex_lock(&mutexClientsLeft);
         clientsLeft++;
@@ -194,7 +178,6 @@ void* customer(void* args){
         addToQueSave(&leftQue, clientId);
         printInfo();
     }
-
     return NULL;
 }
 
@@ -240,13 +223,24 @@ void initialazieThreads(){
         }
     }
 
-    pthread_mutex_destroy(&mutexWaitroom);
-    pthread_mutex_destroy(&mutexCurrentlyCutting);
-    pthread_mutex_destroy(&mutexClientsLeft);
-    pthread_mutex_destroy(&mutexQue);
-
-    pthread_cond_destroy(&condBarber);
-    pthread_cond_destroy(&condClient);
+    if(pthread_mutex_destroy(&mutexWaitroom) != 0){
+        perror("Failed to destroy mutex mutexWaitroom!\n");
+    }
+    if(pthread_mutex_destroy(&mutexCurrentlyCutting) != 0){
+         perror("Failed to destroy mutex mutexCurrentlyCutting!\n");
+    }
+    if(pthread_mutex_destroy(&mutexClientsLeft) != 0){
+         perror("Failed to destroy mutex mutexClientsLeft!\n");
+    }
+    if(pthread_mutex_destroy(&mutexQue) != 0){
+         perror("Failed to destroy mutex mutexQue!\n");
+    }
+    if(pthread_cond_destroy(&condBarber) != 0){
+         perror("Failed to destroy condition variable condBarber!\n");
+    }
+    if(pthread_cond_destroy(&condClient) != 0){
+         perror("Failed to destroy condition variable condClient!\n");
+    }
 }
 
 int main(int argc, char *argv[]){

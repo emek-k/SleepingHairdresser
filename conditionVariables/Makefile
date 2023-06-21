@@ -1,4 +1,3 @@
-#changed make file for semaphores
 OBJ = condition_variables.o myQueue.o
 all: run
 run: $(OBJ)

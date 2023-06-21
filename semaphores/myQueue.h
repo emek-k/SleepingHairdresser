@@ -1,5 +1,5 @@
-#ifndef EXAMPLE_H
-#define EXAMPLE_H
+#ifndef MYQUEUE_H
+#define MYQUEUE_H
 
 typedef struct Queue{
     int id;
