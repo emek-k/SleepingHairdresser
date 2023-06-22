@@ -2,9 +2,6 @@
 #include <stdlib.h>
 #include "myQueue.h"
 
-Que *barberQue = NULL;
-Que *leftQue = NULL;
-
 struct Queue *addToQue(struct Queue *que, int clientId){
 
     Que *new = malloc(sizeof(Que));

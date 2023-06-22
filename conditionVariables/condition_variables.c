@@ -30,12 +30,14 @@ int INFO = 0;
 int clientsInWaitingRoom = 0;
 int currentlyCutting = 0;
 int clientsLeft = 0;
-int elementsInBarberQue;
+int elementsInBarberQue = 0;
+int nextClient = 0;
 
 pthread_mutex_t mutexWaitroom = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutexCurrentlyCutting = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutexClientsLeft = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutexQue = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t mutexNextClient = PTHREAD_MUTEX_INITIALIZER;
 
 pthread_cond_t condBarber = PTHREAD_COND_INITIALIZER;
 pthread_cond_t condClient = PTHREAD_COND_INITIALIZER;
@@ -113,37 +115,39 @@ void clientLeft(){
 
 void* barber(void* args){
     while(true){
-        while(true){
+        //if clientsWaiting = 0 then wait for client to show up
+        pthread_mutex_lock(&mutexWaitroom);
+        while(clientsInWaitingRoom == 0){
+            pthread_mutex_unlock(&mutexWaitroom);
             pthread_mutex_lock(&mutexCurrentlyCutting);
             if(pthread_cond_wait(&condBarber, &mutexCurrentlyCutting) != 0){
             perror("Sem wait semBarber error!\n");
             }
             pthread_mutex_unlock(&mutexCurrentlyCutting);
-            break;
+            pthread_mutex_lock(&mutexWaitroom);
         }
-        //decrement clients in the wait room
-        takeClientFromWaitRoom();
-        //get id of the client from the que
+        pthread_mutex_unlock(&mutexWaitroom);
+        //take next client id
         int clientId = getFirstElementFromQue(barberQue);
-        //set id to currently cutting
-        setCurrentlyCutting(clientId);
-        //delete currently cutting client from barberQue
-        deleteFirstFromBarberQue();
-        printInfo();
-        doCutting();
-        //reset currently cutting client
-        clientLeft();
-        printInfo();
+        //signal to the next client that now is their turn
+        pthread_mutex_lock(&mutexNextClient);
+        nextClient = clientId;
         if(pthread_cond_signal(&condClient) != 0){
             perror("Cond signal condClient error!\n");
         }
+        pthread_mutex_unlock(&mutexNextClient);
+        
+        takeClientFromWaitRoom();
+        doCutting();
+        clientLeft();
+        printInfo();
     }
 
     return NULL;
 }
 
 
-void* customer(void* args){
+void* client(void* args){
 
     long clientId = (long) args;
 
@@ -156,19 +160,27 @@ void* customer(void* args){
         //add client to the barberQue 
         addToQueSave(&barberQue, clientId);
         printInfo();
-        //if sb is cutting right now then client waits for his turn
-        pthread_mutex_lock(&mutexCurrentlyCutting);
-        while(currentlyCutting != 0){
-            if(pthread_cond_wait(&condClient, &mutexCurrentlyCutting) != 0){
-                perror("Cond wait condClient error!\n");
-            }
-        }
-        pthread_mutex_unlock(&mutexCurrentlyCutting);
-        
+
         //signal client ready
         if(pthread_cond_signal(&condBarber) != 0){
             perror("Cond signal condBarber error!\n");
         }
+
+        //wait for client turn
+        pthread_mutex_lock(&mutexNextClient);
+        while(nextClient != clientId){
+            if(pthread_cond_wait(&condClient, &mutexNextClient) != 0){
+                perror("Cond wait condClient error!\n");
+            }
+        }
+        pthread_mutex_unlock(&mutexNextClient);
+        
+        //set id to currently cutting
+        setCurrentlyCutting(clientId);
+        //client goes for cutting
+        deleteFirstFromBarberQue();
+        printInfo();
+
     }else{
         //note that client left
         pthread_mutex_unlock(&mutexWaitroom);
@@ -186,7 +198,7 @@ void randomSleep(){
     sleep(randomTime);
 }
 
-void initialazieThreads(){
+void initializeThreads(){
 
     srand(time(NULL));
 
@@ -203,8 +215,8 @@ void initialazieThreads(){
     for(long i=0; i<NUMBER_OF_CLIENTS; i++){
         //randomSleep();
         sleep(1);
-        if(pthread_create(&clients[i], NULL, customer, (void*) i + 1)){
-            perror("Failed to create customer thread!\n");
+        if(pthread_create(&clients[i], NULL, client, (void*) i + 1)){
+            perror("Failed to create client thread!\n");
             exit(EXIT_FAILURE);
         }
     }
@@ -218,7 +230,7 @@ void initialazieThreads(){
 
     for(long i=0; i<NUMBER_OF_CLIENTS; i++){
         if(pthread_join(clients[i], NULL)){
-            perror("Failed to join customer thread!\n");
+            perror("Failed to join client thread!\n");
             exit(EXIT_FAILURE);
         }
     }
@@ -233,6 +245,9 @@ void initialazieThreads(){
          perror("Failed to destroy mutex mutexClientsLeft!\n");
     }
     if(pthread_mutex_destroy(&mutexQue) != 0){
+         perror("Failed to destroy mutex mutexQue!\n");
+    }
+    if(pthread_mutex_destroy(&mutexNextClient) != 0){
          perror("Failed to destroy mutex mutexQue!\n");
     }
     if(pthread_cond_destroy(&condBarber) != 0){
@@ -276,7 +291,7 @@ int main(int argc, char *argv[]){
 
     printf("STATUS | CLIENTS %d | CUT TIME %d | INFO %d\n", NUMBER_OF_CLIENTS, TIME_OF_CUTTING, INFO);
 
-    initialazieThreads();
+    initializeThreads();
 
     return EXIT_SUCCESS;
 }

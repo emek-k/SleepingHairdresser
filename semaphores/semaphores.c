@@ -31,12 +31,14 @@ int INFO = 0;
 int clientsInWaitingRoom = 0;
 int currentlyCutting = 0;
 int clientsLeft = 0;
-int elementsInBarberQue;
+int elementsInBarberQue = 0;
+int nextClient = 0;
 
 pthread_mutex_t mutexWaitroom = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutexCurrentlyCutting = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutexClientsLeft = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t mutexQue = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t mutexNextClient = PTHREAD_MUTEX_INITIALIZER;
 
 sem_t *semClient; //signal client is ready
 sem_t *semBarber; //wakes barber up
@@ -68,14 +70,19 @@ void printInfo(){
 
 void deleteFirstFromBarberQue(){
     pthread_mutex_lock(&mutexQue);
-    barberQue = deleteFirstFromQue(barberQue);
-    elementsInBarberQue--;
+    if(elementsInBarberQue > 0){
+        barberQue = deleteFirstFromQue(barberQue);
+        elementsInBarberQue--;
+    }
     pthread_mutex_unlock(&mutexQue);
 }
 
 int getFirstElementFromQue(struct Queue *que){
     pthread_mutex_lock(&mutexQue);
-    int nextClient = que->id;
+    int nextClient = 0;
+    if(elementsInBarberQue > 0){
+        nextClient = que->id;
+    }
     pthread_mutex_unlock(&mutexQue);
     return nextClient;
 }
@@ -91,15 +98,13 @@ void addToQueSave(struct Queue **que, long clientId){
 }
 
 void doCutting(){
-    //pthread_mutex_lock(&mutexCurrentlyCutting);
-    //printf("    Now cutting %d\n", currentlyCutting);
-    //pthread_mutex_unlock(&mutexCurrentlyCutting);
-
     sleep(TIME_OF_CUTTING);
+}
 
-    // pthread_mutex_lock(&mutexCurrentlyCutting);
-    // printf("    Done cutting %d\n", currentlyCutting);
-    // pthread_mutex_unlock(&mutexCurrentlyCutting);
+void takeClientFromWaitRoom(){
+    pthread_mutex_lock(&mutexWaitroom);
+    clientsInWaitingRoom--;
+    pthread_mutex_unlock(&mutexWaitroom);
 }
 
 void setCurrentlyCutting(long clientId){
@@ -112,69 +117,70 @@ void clientLeft(){
     pthread_mutex_lock(&mutexCurrentlyCutting);
     currentlyCutting = 0;
     pthread_mutex_unlock(&mutexCurrentlyCutting);
-
-    if(sem_post(semClient) != 0){
-        perror("Sem post semClient error!\n");
-    }
 }
 
 void* barber(void* args){
     while(true){
-        if(sem_wait(semBarber) != 0){
-            perror("Sem wait semBarber error!\n");
-        }
         pthread_mutex_lock(&mutexWaitroom);
-        clientsInWaitingRoom--;
+        while(clientsInWaitingRoom == 0){
+            pthread_mutex_unlock(&mutexWaitroom);
+            if(sem_wait(semBarber) != 0){
+                perror("Sem wait semBarber error!\n");
+            }
+        }
         pthread_mutex_unlock(&mutexWaitroom);
-        
-        //get id of the client from the que
+        //take next client id
         int clientId = getFirstElementFromQue(barberQue);
-        //set id to currently cutting
-        setCurrentlyCutting(clientId);
-        deleteFirstFromBarberQue();
-
-        printInfo();
-
+        //signal to the nextClient that barber is ready
+        pthread_mutex_lock(&mutexNextClient);
+        nextClient = clientId;
+        pthread_mutex_unlock(&mutexNextClient);
+        if(sem_post(semClient) != 0){
+            perror("Cond signal condClient error!\n");
+        }
+        takeClientFromWaitRoom();
         doCutting();
         clientLeft();
-
         printInfo();
     }
-
     return NULL;
 }
 
 
-void* customer(void* args){
+void* client(void* args){
 
     long clientId = (long) args;
-
     printf("Client %ld comes...\n", clientId);
     pthread_mutex_lock(&mutexWaitroom);
     if(clientsInWaitingRoom < NUMBER_OF_SEATS_IN_WAITROOM){
         clientsInWaitingRoom++;
         pthread_mutex_unlock(&mutexWaitroom);
-
         addToQueSave(&barberQue, clientId);
         printInfo();
-
-        pthread_mutex_lock(&mutexCurrentlyCutting);
-        if(currentlyCutting != 0){
-            pthread_mutex_unlock(&mutexCurrentlyCutting);
-            if(sem_wait(semClient) != 0){
-                perror("Sem wair semClient error!\n");
-            }
-        }else{
-            pthread_mutex_unlock(&mutexCurrentlyCutting);
-        }
-        
-        //setCurrentlyCutting(clientId);
 
         //signal client ready
         if(sem_post(semBarber) != 0){
             perror("Sem post semBarber error!\n");
         }
 
+        //wait for client turn
+        pthread_mutex_lock(&mutexNextClient);
+        while(nextClient != clientId){
+            pthread_mutex_unlock(&mutexNextClient);
+            if(sem_wait(semClient) != 0){
+                perror("Cond wait condClient error!\n");
+            }
+            pthread_mutex_lock(&mutexNextClient);
+        }
+        pthread_mutex_unlock(&mutexNextClient);
+    
+        //set id to currently cutting
+        setCurrentlyCutting(clientId);
+        
+        //client goes for cutting
+        //printf("TEST 1 CUST\n");
+        deleteFirstFromBarberQue();
+        printInfo();
     }else{
         pthread_mutex_unlock(&mutexWaitroom);
         pthread_mutex_lock(&mutexClientsLeft);
@@ -183,7 +189,6 @@ void* customer(void* args){
         addToQueSave(&leftQue, clientId);
         printInfo();
     }
-
     return NULL;
 }
 
@@ -192,7 +197,7 @@ void randomSleep(){
     sleep(randomTime);
 }
 
-void initialazieThreads(){
+void initializeThreads(){
 
     srand(time(NULL));
 
@@ -215,8 +220,8 @@ void initialazieThreads(){
     for(long i=0; i<NUMBER_OF_CLIENTS; i++){
         //randomSleep();
         sleep(1);
-        if(pthread_create(&clients[i], NULL, customer, (void*) i + 1)){
-            perror("Failed to create customer thread!\n");
+        if(pthread_create(&clients[i], NULL, client, (void*) i + 1)){
+            perror("Failed to create client thread!\n");
             exit(EXIT_FAILURE);
         }
     }
@@ -230,19 +235,32 @@ void initialazieThreads(){
 
     for(long i=0; i<NUMBER_OF_CLIENTS; i++){
         if(pthread_join(clients[i], NULL)){
-            perror("Failed to join customer thread!\n");
+            perror("Failed to join client thread!\n");
             exit(EXIT_FAILURE);
         }
     }
 
-    pthread_mutex_destroy(&mutexWaitroom);
-    pthread_mutex_destroy(&mutexCurrentlyCutting);
-    pthread_mutex_destroy(&mutexClientsLeft);
-    pthread_mutex_destroy(&mutexQue);
-
-    sem_close(semClient);
-    sem_close(semBarber);
-
+    if(pthread_mutex_destroy(&mutexWaitroom) != 0){
+        perror("Failed to destroy mutex mutexWaitroom!\n");
+    }
+    if(pthread_mutex_destroy(&mutexCurrentlyCutting) != 0){
+         perror("Failed to destroy mutex mutexCurrentlyCutting!\n");
+    }
+    if(pthread_mutex_destroy(&mutexClientsLeft) != 0){
+         perror("Failed to destroy mutex mutexClientsLeft!\n");
+    }
+    if(pthread_mutex_destroy(&mutexQue) != 0){
+         perror("Failed to destroy mutex mutexQue!\n");
+    }
+    if(pthread_mutex_destroy(&mutexNextClient) != 0){
+         perror("Failed to destroy mutex mutexQue!\n");
+    }
+    if(sem_close(semClient) != 0){
+         perror("Failed to destroy semaphore semClient!\n");
+    }
+    if(sem_close(semBarber) != 0){
+         perror("Failed to destroy semaphore semBarber!\n");
+    }
 }
 
 int main(int argc, char *argv[]){
@@ -278,7 +296,7 @@ int main(int argc, char *argv[]){
 
     printf("STATUS | CLIENTS %d | CUT TIME %d | INFO %d\n", NUMBER_OF_CLIENTS, TIME_OF_CUTTING, INFO);
 
-    initialazieThreads();
+    initializeThreads();
 
     return EXIT_SUCCESS;
 }
