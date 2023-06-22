@@ -218,8 +218,8 @@ void initializeThreads(){
     }
 
     for(long i=0; i<NUMBER_OF_CLIENTS; i++){
-        //randomSleep();
-        sleep(1);
+        randomSleep();
+        //sleep(1);
         if(pthread_create(&clients[i], NULL, client, (void*) i + 1)){
             perror("Failed to create client thread!\n");
             exit(EXIT_FAILURE);
