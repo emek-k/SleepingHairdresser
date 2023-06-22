@@ -132,7 +132,7 @@ void* barber(void* args){
         //signal to the next client that now is their turn
         pthread_mutex_lock(&mutexNextClient);
         nextClient = clientId;
-        if(pthread_cond_signal(&condClient) != 0){
+        if(pthread_cond_broadcast(&condClient) != 0){
             perror("Cond signal condClient error!\n");
         }
         pthread_mutex_unlock(&mutexNextClient);
